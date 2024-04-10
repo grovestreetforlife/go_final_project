@@ -19,9 +19,7 @@ func Server() error {
 	http.Handle("/api/nextdate", http.HandlerFunc(nextDate))
 	http.Handle("/api/task", http.HandlerFunc(task))
 	http.Handle("/api/tasks", http.HandlerFunc(getAll))
-	//http.Handle("/api/task/done", http.HandlerFunc(taskDone))
-	http.HandleFunc("POST /api/task/done", taskDone)
-	//http.Handle("/api/task/", http.HandlerFunc(getById))
+	http.Handle("/api/task/done", http.HandlerFunc(taskDone))
 	err := http.ListenAndServe(Port, nil)
 	if err != nil {
 		return err
