@@ -11,9 +11,10 @@ var (
 	ErrBadTask    = fmt.Errorf("некорректная задача")
 	ErrSearchTask = fmt.Errorf("задача не найдена")
 
-	ErrOpenDB   = fmt.Errorf("не удалось открыть базу данных")
-	ErrCreateDB = fmt.Errorf("не удалось создать базу данных")
-	ErrSqlExec  = fmt.Errorf("не удалось выполнить запрос")
+	ErrOpenDB    = fmt.Errorf("не удалось открыть базу данных")
+	ErrCreateDB  = fmt.Errorf("не удалось создать базу данных")
+	ErrSqlExec   = fmt.Errorf("не удалось выполнить запрос")
+	ErrCreateIdx = fmt.Errorf("не удалось создать индекс")
 
 	ErrEmptyTitle = fmt.Errorf("заголовок задачи не может быть пустым")
 	ErrEmptyDate  = fmt.Errorf("дата задачи не может быть пустой")

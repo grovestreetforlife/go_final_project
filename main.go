@@ -13,12 +13,18 @@ const (
 )
 
 func main() {
-	err := CheckDB()
+	db, err := NewDatabase() // Использование функции для создания базы данных
 	if err != nil {
-		log.Println("Failed to open DB", err)
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
-	err = Server()
+	defer db.DB.Close()
+
+	methods := NewDates(db)
+
+	server := NewServer(db, methods)
+	err = server.Start()
 	if err != nil {
-		log.Println("Failed to start server", err)
+		log.Fatalf("Failed to start the server: %v", err)
 	}
+
 }

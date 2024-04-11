@@ -1,9 +1,53 @@
 package main
 
 import (
+	"go_final_project/models"
 	"strconv"
 	"time"
 )
+
+type Meths interface {
+	AddTask(task *models.Task) (int64, error)
+	GetTaskById(id string) (*models.Task, error)
+	GetTasks() (*models.TaskList, error)
+	UpdateTask(task *models.Task) error
+	DeleteTask(id string) error
+	ValidTask(t *models.Task) (*models.Task, error)
+}
+
+type Meth struct {
+	meths Meths
+}
+
+func NewDates(db Meths) *Meth {
+	return &Meth{
+		meths: db,
+	}
+}
+
+func (m *Meth) GetTaskById(id string) (*models.Task, error) {
+	return m.meths.GetTaskById(id)
+}
+
+func (m *Meth) AddTask(task *models.Task) (int64, error) {
+	return m.meths.AddTask(task)
+}
+
+func (m *Meth) GetTasks() (*models.TaskList, error) {
+	return m.meths.GetTasks()
+}
+
+func (m *Meth) UpdateTask(task *models.Task) error {
+	return m.meths.UpdateTask(task)
+}
+
+func (m *Meth) DeleteTask(id string) error {
+	return m.meths.DeleteTask(id)
+}
+
+func (m *Meth) ValidTask(t *models.Task) (*models.Task, error) {
+	return m.meths.ValidTask(t)
+}
 
 func NextDate(now time.Time, date string, repeat string) (string, error) {
 
