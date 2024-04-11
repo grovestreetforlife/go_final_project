@@ -11,12 +11,11 @@ import (
 )
 
 type Server struct {
-	db Database
-	m  *Meth
+	m Meths
 }
 
-func NewServer(db Database, meth *Meth) *Server {
-	return &Server{db: db, m: meth}
+func NewServer(meth Meths) *Server {
+	return &Server{m: meth}
 }
 
 func (s *Server) Start() error {
@@ -44,7 +43,7 @@ func (s *Server) nextDate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nextDate, err := NextDate(nowTime, date, repeat)
+	nextDate, err := s.m.NextDate(nowTime, date, repeat)
 	if err != nil {
 		return
 	}
@@ -102,7 +101,7 @@ func (s *Server) taskDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newDate, err := NextDate(time.Now(), t.Date, t.Repeat)
+	newDate, err := s.m.NextDate(time.Now(), t.Date, t.Repeat)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

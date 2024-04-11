@@ -3,6 +3,7 @@ package main
 import (
 	"go_final_project/models"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -13,44 +14,71 @@ type Meths interface {
 	UpdateTask(task *models.Task) error
 	DeleteTask(id string) error
 	ValidTask(t *models.Task) (*models.Task, error)
+	NextDate(now time.Time, date string, repeat string) (string, error)
 }
 
 type Meth struct {
-	meths Meths
+	db Database
 }
 
-func NewDates(db Meths) *Meth {
+func NewDates(conn Database) *Meth {
 	return &Meth{
-		meths: db,
+		db: conn,
 	}
 }
 
 func (m *Meth) GetTaskById(id string) (*models.Task, error) {
-	return m.meths.GetTaskById(id)
+	return m.db.GetTaskById(id)
 }
 
 func (m *Meth) AddTask(task *models.Task) (int64, error) {
-	return m.meths.AddTask(task)
+	return m.db.AddTask(task)
 }
 
 func (m *Meth) GetTasks() (*models.TaskList, error) {
-	return m.meths.GetTasks()
+	return m.db.GetTasks()
 }
 
 func (m *Meth) UpdateTask(task *models.Task) error {
-	return m.meths.UpdateTask(task)
+	return m.db.UpdateTask(task)
 }
 
 func (m *Meth) DeleteTask(id string) error {
-	return m.meths.DeleteTask(id)
+	return m.db.DeleteTask(id)
 }
 
 func (m *Meth) ValidTask(t *models.Task) (*models.Task, error) {
-	return m.meths.ValidTask(t)
+	if strings.TrimSpace(t.Title) == "" {
+		return &models.Task{}, ErrEmptyTitle
+	}
+
+	now := time.Now()
+
+	if t.Date == "" {
+		t.Date = now.Format("20060102")
+	}
+
+	_, err := time.Parse("20060102", t.Date)
+	if err != nil {
+		return &models.Task{}, ErrBadDate
+	}
+
+	if t.Date < now.Format("20060102") {
+		if t.Repeat == "" {
+			t.Date = now.Format("20060102")
+		} else {
+			t.Date, err = m.NextDate(now, t.Date, t.Repeat)
+			if err != nil {
+				return &models.Task{}, err
+			}
+		}
+
+	}
+
+	return t, nil
 }
 
-func NextDate(now time.Time, date string, repeat string) (string, error) {
-
+func (m *Meth) NextDate(now time.Time, date string, repeat string) (string, error) {
 	if repeat == "" {
 		return "", ErrBadVal
 	}

@@ -3,14 +3,10 @@ package main
 import (
 	"database/sql"
 	"go_final_project/models"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
 )
 
 type SQLDatabase struct {
-	DB *sql.DB
+	*sql.DB
 }
 
 type Database interface {
@@ -21,15 +17,6 @@ type Database interface {
 	GetTasks() (*models.TaskList, error)
 	UpdateTask(task *models.Task) error
 	DeleteTask(id string) error
-	ValidTask(t *models.Task) (*models.Task, error)
-}
-
-func (db *SQLDatabase) Query(query string, args ...interface{}) (*sql.Rows, error) {
-	return db.DB.Query(query, args...)
-}
-
-func (db *SQLDatabase) Exec(query string, args ...interface{}) (sql.Result, error) {
-	return db.DB.Exec(query, args...)
 }
 
 func NewDatabase() (*SQLDatabase, error) {
@@ -37,51 +24,19 @@ func NewDatabase() (*SQLDatabase, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &SQLDatabase{DB: sqlDB}, nil
+	if err := migrate(sqlDB); err != nil {
+		return nil, err
+	}
+	return &SQLDatabase{sqlDB}, nil
 }
 
-func CheckDB() error {
-	appPath, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	dbFile := filepath.Join(filepath.Dir(appPath), DBName)
-	_, err = os.Stat(dbFile)
-	if err != nil {
-		err := createDB()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func OpenDB() (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", DBName)
-	if err != nil {
-		return nil, ErrOpenDB
-	}
-
-	return db, nil
-}
-
-func createDB() error {
-	db, err := OpenDB()
-	if err != nil {
-		return ErrOpenDB
-	}
-	defer db.Close()
-
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS scheduler (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, title TEXT, comment TEXT, repeat VARCHAR(128));`)
+func migrate(d *sql.DB) error {
+	_, err := d.Exec(`
+		CREATE TABLE IF NOT EXISTS scheduler (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, title TEXT, comment TEXT, repeat VARCHAR(128));
+		CREATE INDEX IF NOT EXISTS idx_date ON scheduler (date);`)
 	if err != nil {
 		return ErrCreateDB
 	}
-
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_date ON scheduler (date);`)
-	if err != nil {
-		return ErrCreateIdx
-	}
-
 	return nil
 }
 
@@ -178,36 +133,4 @@ func (s *SQLDatabase) DeleteTask(id string) error {
 		return ErrSearchTask
 	}
 	return nil
-}
-
-func (s *SQLDatabase) ValidTask(t *models.Task) (*models.Task, error) {
-
-	if strings.TrimSpace(t.Title) == "" {
-		return &models.Task{}, ErrEmptyTitle
-	}
-
-	now := time.Now()
-
-	if t.Date == "" {
-		t.Date = now.Format("20060102")
-	}
-
-	_, err := time.Parse("20060102", t.Date)
-	if err != nil {
-		return &models.Task{}, ErrBadDate
-	}
-
-	if t.Date < now.Format("20060102") {
-		if t.Repeat == "" {
-			t.Date = now.Format("20060102")
-		} else {
-			t.Date, err = NextDate(now, t.Date, t.Repeat)
-			if err != nil {
-				return &models.Task{}, err
-			}
-		}
-
-	}
-
-	return t, nil
 }

@@ -13,7 +13,7 @@ const (
 )
 
 func main() {
-	db, err := NewDatabase() // Использование функции для создания базы данных
+	db, err := NewDatabase()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
@@ -21,7 +21,7 @@ func main() {
 
 	methods := NewDates(db)
 
-	server := NewServer(db, methods)
+	server := NewServer(methods)
 	err = server.Start()
 	if err != nil {
 		log.Fatalf("Failed to start the server: %v", err)
