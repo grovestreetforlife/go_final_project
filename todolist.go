@@ -7,11 +7,11 @@ import (
 )
 
 type Database interface {
-	AddTask(task *Task) (uint64, error)
-	GetTaskById(id uint64) (*TaskJSON, error)
+	AddTask(task *Task) (string, error)
+	GetTaskById(id string) (*Task, error)
 	GetTasks() (*TaskList, error)
 	UpdateTask(task *Task) error
-	DeleteTask(id uint64) error
+	DeleteTask(id string) error
 	ValidTaskAndModify(t *Task) (*Task, error)
 	NextDate(now time.Time, date string, repeat string) (string, error)
 }
@@ -26,11 +26,11 @@ func New(db *SQLDatabase) *Storage {
 	}
 }
 
-func (m *Storage) GetTaskById(id uint64) (*Task, error) {
+func (m *Storage) GetTaskById(id string) (*Task, error) {
 	return m.db.GetTaskById(id)
 }
 
-func (m *Storage) AddTask(task *Task) (uint64, error) {
+func (m *Storage) AddTask(task *Task) (string, error) {
 	return m.db.AddTask(task)
 }
 
@@ -42,12 +42,12 @@ func (m *Storage) UpdateTask(task *Task) error {
 	return m.db.UpdateTask(task)
 }
 
-func (m *Storage) DeleteTask(id uint64) error {
+func (m *Storage) DeleteTask(id string) error {
 	return m.db.DeleteTask(id)
 }
 
-func (m *Storage) DoneTask(id uint64) error {
-	task, err := m.db.GetTaskById(uint64(id))
+func (m *Storage) DoneTask(id string) error {
+	task, err := m.db.GetTaskById(id)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func (m *Storage) DoneTask(id uint64) error {
 
 func (m *Storage) ValidTaskAndModify(t *Task) (*Task, error) {
 	if strings.TrimSpace(t.Title) == "" {
-		return &Task{}, ErrEmptyTitle
+		return nil, ErrEmptyTitle
 	}
 
 	now := time.Now()
@@ -83,7 +83,7 @@ func (m *Storage) ValidTaskAndModify(t *Task) (*Task, error) {
 
 	_, err := time.Parse("20060102", t.Date)
 	if err != nil {
-		return &Task{}, ErrBadDate
+		return nil, ErrBadDate
 	}
 
 	if t.Date < now.Format("20060102") {
@@ -92,7 +92,7 @@ func (m *Storage) ValidTaskAndModify(t *Task) (*Task, error) {
 		} else {
 			t.Date, err = m.NextDate(now, t.Date, t.Repeat)
 			if err != nil {
-				return &Task{}, err
+				return nil, err
 			}
 		}
 

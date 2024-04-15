@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"strconv"
 )
 
 type SQLDatabase struct {
@@ -33,22 +34,26 @@ func (s *SQLDatabase) Close() error {
 	return s.db.Close()
 }
 
-func (s *SQLDatabase) AddTask(task *Task) (uint64, error) {
+func (s *SQLDatabase) AddTask(task *Task) (string, error) {
 	res, err := s.db.Exec("INSERT INTO scheduler (date, title, comment, repeat) VALUES (?, ?, ?, ?)",
 		task.Date, task.Title, task.Comment, task.Repeat)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	return uint64(id), nil
+	return strconv.FormatInt(id, 10), nil
 }
 
-func (s *SQLDatabase) GetTaskById(id uint64) (*Task, error) {
+func (s *SQLDatabase) GetTaskById(ids string) (*Task, error) {
 	var t Task
-	err := s.db.QueryRow("SELECT * FROM scheduler WHERE id=?", id).Scan(&t.ID, &t.Date, &t.Title, &t.Comment, &t.Repeat)
+	id, err := strconv.ParseInt(ids, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	err = s.db.QueryRow("SELECT * FROM scheduler WHERE id=?", id).Scan(&t.ID, &t.Date, &t.Title, &t.Comment, &t.Repeat)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +89,12 @@ func (s *SQLDatabase) UpdateTask(task *Task) error {
 		return err
 	}
 
-	res, err := stmt.Exec(task.Date, task.Title, task.Comment, task.Repeat, task.ID)
+	id, err := strconv.ParseInt(task.ID, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	res, err := stmt.Exec(task.Date, task.Title, task.Comment, task.Repeat, id)
 	if err != nil {
 		return err
 	}
@@ -100,8 +110,13 @@ func (s *SQLDatabase) UpdateTask(task *Task) error {
 	return nil
 }
 
-func (s *SQLDatabase) DeleteTask(id uint64) error {
+func (s *SQLDatabase) DeleteTask(ids string) error {
 	stmt, err := s.db.Prepare("DELETE FROM scheduler WHERE id=?")
+	if err != nil {
+		return err
+	}
+
+	id, err := strconv.ParseInt(ids, 10, 64)
 	if err != nil {
 		return err
 	}

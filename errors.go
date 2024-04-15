@@ -22,4 +22,5 @@ var (
 	ErrEmptyDate  = fmt.Errorf("дата задачи не может быть пустой")
 	ErrSearch     = fmt.Errorf("ошибка в поиске")
 	ErrEmptyId    = fmt.Errorf("не указан id")
+	ErrId         = fmt.Errorf("некорректный id")
 )

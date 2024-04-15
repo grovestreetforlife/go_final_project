@@ -5,18 +5,17 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 )
 
 type TodoList interface {
-	AddTask(task *Task) (uint64, error)
-	GetTaskById(id uint64) (*Task, error)
+	AddTask(task *Task) (string, error)
+	GetTaskById(id string) (*Task, error)
 	GetTasks() (*TaskList, error)
 	UpdateTask(task *Task) error
-	DeleteTask(id uint64) error
+	DeleteTask(id string) error
 	ValidTaskAndModify(t *Task) (*Task, error)
-	DoneTask(id uint64) error
+	DoneTask(id string) error
 	NextDate(now time.Time, date string, repeat string) (string, error)
 }
 
@@ -76,13 +75,9 @@ func (s *Server) doneTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	id, err := strconv.Atoi(r.URL.Query().Get("id"))
-	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, ErrEmptyId.Error()), http.StatusInternalServerError)
-		return
-	}
+	id := r.URL.Query().Get("id")
 
-	err = s.m.DoneTask(uint64(id))
+	err := s.m.DoneTask(id)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
@@ -92,34 +87,24 @@ func (s *Server) doneTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) updateTask(w http.ResponseWriter, r *http.Request) {
-	var tj *TaskJSON
+	var t *Task
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	err := json.NewDecoder(r.Body).Decode(&tj)
-	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
-		return
-	}
-	if tj.ID == "" {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, ErrEmptyId.Error()), http.StatusBadRequest)
-		return
-	}
-
-	task, err := TaskFromJSON(tj)
-	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
-		return
-	}
-
-	task, err = s.m.ValidTaskAndModify(task)
+	err := json.NewDecoder(r.Body).Decode(&t)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
 
-	if err := s.m.UpdateTask(task); err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+	t, err = s.m.ValidTaskAndModify(t)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	if err := s.m.UpdateTask(t); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, ErrSqlExec.Error()), http.StatusInternalServerError)
 		return
 	}
 
@@ -131,21 +116,19 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	id, err := strconv.Atoi(r.URL.Query().Get("id"))
-	if err != nil {
+	id := r.URL.Query().Get("id")
+	if id == "" {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, ErrEmptyId.Error()), http.StatusBadRequest)
 		return
 	}
 
-	t, err := s.m.GetTaskById(uint64(id))
+	t, err := s.m.GetTaskById(id)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
 	}
 
-	tj := TaskToJSON(t)
-
-	res, err := json.Marshal(tj)
+	res, err := json.Marshal(t)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
@@ -161,7 +144,7 @@ func (s *Server) getAllTasks(w http.ResponseWriter, r *http.Request) {
 
 	tl, err := s.m.GetTasks()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, ErrSqlExec.Error()), http.StatusInternalServerError)
 		return
 	}
 
@@ -169,20 +152,14 @@ func (s *Server) getAllTasks(w http.ResponseWriter, r *http.Request) {
 		tl.Tasks = []Task{}
 	}
 
-	tlJSON, err := TaskListToJSON(tl)
+	res, err := json.Marshal(tl)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	res, err := json.Marshal(tlJSON)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, ErrBadFormat.Error()), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(res))
+	w.Write(res)
 }
 
 func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
@@ -209,22 +186,18 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(fmt.Sprintf(`{"id":"%d"}`, id)))
+	w.Write([]byte(fmt.Sprintf(`{"id":"%v"}`, id)))
 
 }
 
 func (s *Server) deleteTask(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	id, err := strconv.Atoi(r.URL.Query().Get("id"))
-	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, ErrEmptyId.Error()), http.StatusInternalServerError)
-		return
-	}
+	id := r.URL.Query().Get("id")
 
-	err = s.m.DeleteTask(uint64(id))
+	err := s.m.DeleteTask(id)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, ErrSqlExec.Error()), http.StatusInternalServerError)
 		return
 	}
 
