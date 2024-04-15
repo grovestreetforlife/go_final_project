@@ -16,37 +16,37 @@ type Database interface {
 	NextDate(now time.Time, date string, repeat string) (string, error)
 }
 
-type TodoList struct {
+type Storage struct {
 	db *SQLDatabase
 }
 
-func New(db *SQLDatabase) *TodoList {
-	return &TodoList{
+func New(db *SQLDatabase) *Storage {
+	return &Storage{
 		db: db,
 	}
 }
 
-func (m *TodoList) GetTaskById(id uint64) (*Task, error) {
+func (m *Storage) GetTaskById(id uint64) (*Task, error) {
 	return m.db.GetTaskById(id)
 }
 
-func (m *TodoList) AddTask(task *Task) (uint64, error) {
+func (m *Storage) AddTask(task *Task) (uint64, error) {
 	return m.db.AddTask(task)
 }
 
-func (m *TodoList) GetTasks() (*TaskList, error) {
+func (m *Storage) GetTasks() (*TaskList, error) {
 	return m.db.GetTasks()
 }
 
-func (m *TodoList) UpdateTask(task *Task) error {
+func (m *Storage) UpdateTask(task *Task) error {
 	return m.db.UpdateTask(task)
 }
 
-func (m *TodoList) DeleteTask(id uint64) error {
+func (m *Storage) DeleteTask(id uint64) error {
 	return m.db.DeleteTask(id)
 }
 
-func (m *TodoList) DoneTask(id uint64) error {
+func (m *Storage) DoneTask(id uint64) error {
 	task, err := m.db.GetTaskById(uint64(id))
 	if err != nil {
 		return err
@@ -70,7 +70,7 @@ func (m *TodoList) DoneTask(id uint64) error {
 
 }
 
-func (m *TodoList) ValidTaskAndModify(t *Task) (*Task, error) {
+func (m *Storage) ValidTaskAndModify(t *Task) (*Task, error) {
 	if strings.TrimSpace(t.Title) == "" {
 		return &Task{}, ErrEmptyTitle
 	}
@@ -101,7 +101,7 @@ func (m *TodoList) ValidTaskAndModify(t *Task) (*Task, error) {
 	return t, nil
 }
 
-func (m *TodoList) NextDate(now time.Time, date string, repeat string) (string, error) {
+func (m *Storage) NextDate(now time.Time, date string, repeat string) (string, error) {
 	if repeat == "" {
 		return "", ErrBadVal
 	}

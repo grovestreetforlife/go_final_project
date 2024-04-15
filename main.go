@@ -19,9 +19,9 @@ func main() {
 	}
 	defer db.Close()
 
-	methods := New(db)
+	todolist := New(db)
 
-	server := NewServer(methods)
+	server := NewServer(todolist)
 	err = server.Start()
 	if err != nil {
 		log.Fatalf("Failed to start the server: %v", err)

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-type TodoL interface {
+type TodoList interface {
 	AddTask(task *Task) (uint64, error)
 	GetTaskById(id uint64) (*Task, error)
 	GetTasks() (*TaskList, error)
@@ -21,26 +21,37 @@ type TodoL interface {
 }
 
 type Server struct {
-	m TodoL
+	m TodoList
 }
 
-func NewServer(td TodoL) *Server {
-	return &Server{m: td}
+func NewServer(td TodoList) *Server {
+	s := &Server{m: td}
+	s.startHandlers()
+	return s
 }
 
 func (s *Server) Start() error {
 	log.Println("Listening on port" + port)
-
-	http.Handle("/", http.FileServer(http.Dir(webDir)))
-	http.Handle("/api/nextdate", http.HandlerFunc(s.nextDate))
-	http.Handle("/api/task", http.HandlerFunc(s.task))
-	http.Handle("/api/tasks", http.HandlerFunc(s.getAll))
-	http.Handle("/api/task/done", http.HandlerFunc(s.taskDone))
 	err := http.ListenAndServe(port, nil)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (s *Server) startHandlers() {
+	http.Handle("/", http.FileServer(http.Dir(webDir)))
+
+	http.HandleFunc("GET /api/nextdate", s.nextDate)
+	http.HandleFunc("GET /api/task", s.getTask)
+	http.HandleFunc("GET /api/tasks", s.getAllTasks)
+
+	http.HandleFunc("POST /api/task/done", s.doneTask)
+	http.HandleFunc("POST /api/task", s.createTask)
+
+	http.HandleFunc("PUT /api/task", s.updateTask)
+
+	http.HandleFunc("DELETE /api/task", s.deleteTask)
 }
 
 func (s *Server) nextDate(w http.ResponseWriter, r *http.Request) {
@@ -61,23 +72,7 @@ func (s *Server) nextDate(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(nextDate))
 }
 
-func (s *Server) task(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		s.getById(w, r)
-	case http.MethodPost:
-		s.taskPost(w, r)
-	case http.MethodPut:
-		s.taskPut(w, r)
-	case http.MethodDelete:
-		s.taskDelete(w, r)
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-	}
-
-}
-
-func (s *Server) taskDone(w http.ResponseWriter, r *http.Request) {
+func (s *Server) doneTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
@@ -96,7 +91,7 @@ func (s *Server) taskDone(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{}`))
 }
 
-func (s *Server) taskPut(w http.ResponseWriter, r *http.Request) {
+func (s *Server) updateTask(w http.ResponseWriter, r *http.Request) {
 	var tj *TaskJSON
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
@@ -132,7 +127,7 @@ func (s *Server) taskPut(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{}`))
 }
 
-func (s *Server) getById(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
@@ -159,7 +154,7 @@ func (s *Server) getById(w http.ResponseWriter, r *http.Request) {
 	w.Write(res)
 }
 
-func (s *Server) getAll(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getAllTasks(w http.ResponseWriter, r *http.Request) {
 	var tl *TaskList
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
@@ -190,7 +185,7 @@ func (s *Server) getAll(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(res))
 }
 
-func (s *Server) taskPost(w http.ResponseWriter, r *http.Request) {
+func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 	var task *Task
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
@@ -213,12 +208,12 @@ func (s *Server) taskPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(fmt.Sprintf(`{"id":"%d"}`, id)))
 
 }
 
-func (s *Server) taskDelete(w http.ResponseWriter, r *http.Request) {
+func (s *Server) deleteTask(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
 	id, err := strconv.Atoi(r.URL.Query().Get("id"))
