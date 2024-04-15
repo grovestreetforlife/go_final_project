@@ -1,55 +1,78 @@
 package main
 
 import (
-	"go_final_project/models"
 	"strconv"
 	"strings"
 	"time"
 )
 
-type Meths interface {
-	AddTask(task *models.Task) (int64, error)
-	GetTaskById(id string) (*models.Task, error)
-	GetTasks() (*models.TaskList, error)
-	UpdateTask(task *models.Task) error
-	DeleteTask(id string) error
-	ValidTask(t *models.Task) (*models.Task, error)
+type Database interface {
+	AddTask(task *Task) (uint64, error)
+	GetTaskById(id uint64) (*TaskJSON, error)
+	GetTasks() (*TaskList, error)
+	UpdateTask(task *Task) error
+	DeleteTask(id uint64) error
+	ValidTaskAndModify(t *Task) (*Task, error)
 	NextDate(now time.Time, date string, repeat string) (string, error)
 }
 
-type Meth struct {
-	db Database
+type TodoList struct {
+	db *SQLDatabase
 }
 
-func NewDates(conn Database) *Meth {
-	return &Meth{
-		db: conn,
+func New(db *SQLDatabase) *TodoList {
+	return &TodoList{
+		db: db,
 	}
 }
 
-func (m *Meth) GetTaskById(id string) (*models.Task, error) {
+func (m *TodoList) GetTaskById(id uint64) (*Task, error) {
 	return m.db.GetTaskById(id)
 }
 
-func (m *Meth) AddTask(task *models.Task) (int64, error) {
+func (m *TodoList) AddTask(task *Task) (uint64, error) {
 	return m.db.AddTask(task)
 }
 
-func (m *Meth) GetTasks() (*models.TaskList, error) {
+func (m *TodoList) GetTasks() (*TaskList, error) {
 	return m.db.GetTasks()
 }
 
-func (m *Meth) UpdateTask(task *models.Task) error {
+func (m *TodoList) UpdateTask(task *Task) error {
 	return m.db.UpdateTask(task)
 }
 
-func (m *Meth) DeleteTask(id string) error {
+func (m *TodoList) DeleteTask(id uint64) error {
 	return m.db.DeleteTask(id)
 }
 
-func (m *Meth) ValidTask(t *models.Task) (*models.Task, error) {
+func (m *TodoList) DoneTask(id uint64) error {
+	task, err := m.db.GetTaskById(uint64(id))
+	if err != nil {
+		return err
+	}
+
+	if task.Repeat == "" {
+		return m.db.DeleteTask(task.ID)
+	}
+
+	task.Date, err = m.NextDate(time.Now(), task.Date, task.Repeat)
+	if err != nil {
+		return err
+	}
+
+	err = m.db.UpdateTask(task)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func (m *TodoList) ValidTaskAndModify(t *Task) (*Task, error) {
 	if strings.TrimSpace(t.Title) == "" {
-		return &models.Task{}, ErrEmptyTitle
+		return &Task{}, ErrEmptyTitle
 	}
 
 	now := time.Now()
@@ -60,7 +83,7 @@ func (m *Meth) ValidTask(t *models.Task) (*models.Task, error) {
 
 	_, err := time.Parse("20060102", t.Date)
 	if err != nil {
-		return &models.Task{}, ErrBadDate
+		return &Task{}, ErrBadDate
 	}
 
 	if t.Date < now.Format("20060102") {
@@ -69,7 +92,7 @@ func (m *Meth) ValidTask(t *models.Task) (*models.Task, error) {
 		} else {
 			t.Date, err = m.NextDate(now, t.Date, t.Repeat)
 			if err != nil {
-				return &models.Task{}, err
+				return &Task{}, err
 			}
 		}
 
@@ -78,7 +101,7 @@ func (m *Meth) ValidTask(t *models.Task) (*models.Task, error) {
 	return t, nil
 }
 
-func (m *Meth) NextDate(now time.Time, date string, repeat string) (string, error) {
+func (m *TodoList) NextDate(now time.Time, date string, repeat string) (string, error) {
 	if repeat == "" {
 		return "", ErrBadVal
 	}

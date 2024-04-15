@@ -8,8 +8,8 @@ import (
 
 const (
 	webDir = "./web"
-	DBName = "./scheduler.db"
-	Port   = ":7540"
+	dbName = "./scheduler.db"
+	port   = ":7540"
 )
 
 func main() {
@@ -17,9 +17,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.DB.Close()
+	defer db.Close()
 
-	methods := NewDates(db)
+	methods := New(db)
 
 	server := NewServer(methods)
 	err = server.Start()

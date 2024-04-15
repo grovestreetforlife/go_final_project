@@ -2,25 +2,14 @@ package main
 
 import (
 	"database/sql"
-	"go_final_project/models"
 )
 
 type SQLDatabase struct {
-	*sql.DB
-}
-
-type Database interface {
-	Query(query string, args ...interface{}) (*sql.Rows, error)
-	Exec(query string, args ...interface{}) (sql.Result, error)
-	AddTask(task *models.Task) (int64, error)
-	GetTaskById(id string) (*models.Task, error)
-	GetTasks() (*models.TaskList, error)
-	UpdateTask(task *models.Task) error
-	DeleteTask(id string) error
+	db *sql.DB
 }
 
 func NewDatabase() (*SQLDatabase, error) {
-	sqlDB, err := sql.Open("sqlite3", DBName)
+	sqlDB, err := sql.Open("sqlite3", dbName)
 	if err != nil {
 		return nil, err
 	}
@@ -41,11 +30,11 @@ func migrate(d *sql.DB) error {
 }
 
 func (s *SQLDatabase) Close() error {
-	return s.DB.Close()
+	return s.db.Close()
 }
 
-func (s *SQLDatabase) AddTask(task *models.Task) (int64, error) {
-	res, err := s.DB.Exec("INSERT INTO scheduler (date, title, comment, repeat) VALUES (?, ?, ?, ?)",
+func (s *SQLDatabase) AddTask(task *Task) (uint64, error) {
+	res, err := s.db.Exec("INSERT INTO scheduler (date, title, comment, repeat) VALUES (?, ?, ?, ?)",
 		task.Date, task.Title, task.Comment, task.Repeat)
 	if err != nil {
 		return 0, ErrSqlExec
@@ -54,26 +43,26 @@ func (s *SQLDatabase) AddTask(task *models.Task) (int64, error) {
 	if err != nil {
 		return 0, ErrSqlExec
 	}
-	return id, nil
+	return uint64(id), nil
 }
 
-func (s *SQLDatabase) GetTaskById(id string) (*models.Task, error) {
-	var t models.Task
-	err := s.DB.QueryRow("SELECT * FROM scheduler WHERE id=?", id).Scan(&t.ID, &t.Date, &t.Title, &t.Comment, &t.Repeat)
+func (s *SQLDatabase) GetTaskById(id uint64) (*Task, error) {
+	var t Task
+	err := s.db.QueryRow("SELECT * FROM scheduler WHERE id=?", id).Scan(&t.ID, &t.Date, &t.Title, &t.Comment, &t.Repeat)
 	if err != nil {
-		return nil, ErrSqlExec
+		return &Task{}, ErrSqlExec
 	}
 	return &t, nil
 }
 
-func (s *SQLDatabase) GetTasks() (*models.TaskList, error) {
-	var tl models.TaskList
-	rows, err := s.DB.Query(`SELECT * FROM scheduler ORDER BY date ASC LIMIT 50`)
+func (s *SQLDatabase) GetTasks() (*TaskList, error) {
+	var tl TaskList
+	rows, err := s.db.Query(`SELECT * FROM scheduler ORDER BY date ASC LIMIT 50`)
 	if err != nil {
 		return nil, ErrSqlExec
 	}
 	for rows.Next() {
-		var t models.Task
+		var t Task
 		err = rows.Scan(&t.ID, &t.Date, &t.Title, &t.Comment, &t.Repeat)
 		if err != nil {
 			return nil, ErrSqlExec
@@ -90,9 +79,9 @@ func (s *SQLDatabase) GetTasks() (*models.TaskList, error) {
 	return &tl, nil
 }
 
-func (s *SQLDatabase) UpdateTask(task *models.Task) error {
-	// Функция должна обновлять задачу в базе данных по ID и возвращать ошибку, если задача не найдена
-	stmt, err := s.DB.Prepare("UPDATE scheduler SET date=?, title=?, comment=?, repeat=? WHERE id=?")
+func (s *SQLDatabase) UpdateTask(task *Task) error {
+
+	stmt, err := s.db.Prepare("UPDATE scheduler SET date=?, title=?, comment=?, repeat=? WHERE id=?")
 	if err != nil {
 		return ErrSqlExec
 	}
@@ -108,13 +97,13 @@ func (s *SQLDatabase) UpdateTask(task *models.Task) error {
 	}
 
 	if rowsAffected == 0 {
-		return ErrSearchTask
+		return ErrRows
 	}
 	return nil
 }
 
-func (s *SQLDatabase) DeleteTask(id string) error {
-	stmt, err := s.DB.Prepare("DELETE FROM scheduler WHERE id=?")
+func (s *SQLDatabase) DeleteTask(id uint64) error {
+	stmt, err := s.db.Prepare("DELETE FROM scheduler WHERE id=?")
 	if err != nil {
 		return ErrSqlExec
 	}
@@ -130,7 +119,7 @@ func (s *SQLDatabase) DeleteTask(id string) error {
 	}
 
 	if rowsAffected == 0 {
-		return ErrSearchTask
+		return ErrRows
 	}
 	return nil
 }

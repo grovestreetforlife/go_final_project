@@ -10,6 +10,7 @@ var (
 	ErrBadVal     = fmt.Errorf("некорректное значение")
 	ErrBadTask    = fmt.Errorf("некорректная задача")
 	ErrSearchTask = fmt.Errorf("задача не найдена")
+	ErrRows       = fmt.Errorf("изменено 0 строк")
 
 	ErrOpenDB    = fmt.Errorf("не удалось открыть базу данных")
 	ErrCreateDB  = fmt.Errorf("не удалось создать базу данных")

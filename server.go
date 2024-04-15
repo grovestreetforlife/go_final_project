@@ -2,31 +2,41 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
-
-	"go_final_project/models"
 )
 
-type Server struct {
-	m Meths
+type TodoL interface {
+	AddTask(task *Task) (uint64, error)
+	GetTaskById(id uint64) (*Task, error)
+	GetTasks() (*TaskList, error)
+	UpdateTask(task *Task) error
+	DeleteTask(id uint64) error
+	ValidTaskAndModify(t *Task) (*Task, error)
+	DoneTask(id uint64) error
+	NextDate(now time.Time, date string, repeat string) (string, error)
 }
 
-func NewServer(meth Meths) *Server {
-	return &Server{m: meth}
+type Server struct {
+	m TodoL
+}
+
+func NewServer(td TodoL) *Server {
+	return &Server{m: td}
 }
 
 func (s *Server) Start() error {
-	log.Println("Listening on port" + Port)
+	log.Println("Listening on port" + port)
 
 	http.Handle("/", http.FileServer(http.Dir(webDir)))
 	http.Handle("/api/nextdate", http.HandlerFunc(s.nextDate))
 	http.Handle("/api/task", http.HandlerFunc(s.task))
 	http.Handle("/api/tasks", http.HandlerFunc(s.getAll))
 	http.Handle("/api/task/done", http.HandlerFunc(s.taskDone))
-	err := http.ListenAndServe(Port, nil)
+	err := http.ListenAndServe(port, nil)
 	if err != nil {
 		return err
 	}
@@ -69,153 +79,91 @@ func (s *Server) task(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) taskDone(w http.ResponseWriter, r *http.Request) {
 
-	var t *models.Task
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		respErr := models.RespErr{Err: ErrEmptyId.Error()}
-		res, err := json.Marshal(respErr)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(res))
-		return
-	}
-
-	t, err := s.m.GetTaskById(id)
+	id, err := strconv.Atoi(r.URL.Query().Get("id"))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, ErrEmptyId.Error()), http.StatusInternalServerError)
 		return
 	}
 
-	if t.Repeat == "" {
-		err := s.m.DeleteTask(t.ID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Write([]byte(`{}`))
-		return
-	}
-
-	newDate, err := s.m.NextDate(time.Now(), t.Date, t.Repeat)
+	err = s.m.DoneTask(uint64(id))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
 	}
-
-	t.Date = newDate
-	err = s.m.UpdateTask(t)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
+	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{}`))
 }
 
 func (s *Server) taskPut(w http.ResponseWriter, r *http.Request) {
-	var task *models.Task
+	var tj *TaskJSON
 
-	err := json.NewDecoder(r.Body).Decode(&task)
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+
+	err := json.NewDecoder(r.Body).Decode(&tj)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+		return
+	}
+	if tj.ID == "" {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, ErrEmptyId.Error()), http.StatusBadRequest)
 		return
 	}
 
-	task, err = s.m.ValidTask(task)
+	task, err := TaskFromJSON(tj)
 	if err != nil {
-		respErr := models.RespErr{Err: ErrBadVal.Error()}
-		res, err := json.Marshal(respErr)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
 
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(res))
+	task, err = s.m.ValidTaskAndModify(task)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
 
 	if err := s.m.UpdateTask(task); err != nil {
-		respErr := models.RespErr{Err: err.Error()}
-		res, err := json.Marshal(respErr)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(res)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("{}"))
+	w.Write([]byte(`{}`))
 }
 
 func (s *Server) getById(w http.ResponseWriter, r *http.Request) {
 
-	var t *models.Task
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		respErr := models.RespErr{Err: ErrEmptyId.Error()}
-		res, err := json.Marshal(respErr)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(res))
-		return
-	}
-
-	t, err := s.m.GetTaskById(id)
-	if err != nil {
-		respErr := models.RespErr{Err: err.Error()}
-		res, err := json.Marshal(respErr)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(res)
-		return
-	}
-
-	if t.ID == "" {
-		respErr := models.RespErr{Err: ErrSearchTask.Error()}
-		res, err := json.Marshal(respErr)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(res))
-		return
-	}
-
-	res, err := json.Marshal(t)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+
+	id, err := strconv.Atoi(r.URL.Query().Get("id"))
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, ErrEmptyId.Error()), http.StatusBadRequest)
+		return
+	}
+
+	t, err := s.m.GetTaskById(uint64(id))
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	tj := TaskToJSON(t)
+
+	res, err := json.Marshal(tj)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(res))
+	w.Write(res)
 }
 
 func (s *Server) getAll(w http.ResponseWriter, r *http.Request) {
+	var tl *TaskList
 
-	var tl *models.TaskList
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+
 	tl, err := s.m.GetTasks()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -223,106 +171,68 @@ func (s *Server) getAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if tl.Tasks == nil {
-		tl.Tasks = []models.Task{}
+		tl.Tasks = []Task{}
 	}
 
-	res, err := json.Marshal(tl)
+	tlJSON, err := TaskListToJSON(tl)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	res, err := json.Marshal(tlJSON)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(res))
 }
 
 func (s *Server) taskPost(w http.ResponseWriter, r *http.Request) {
-	var task *models.Task
+	var task *Task
+
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+
 	err := json.NewDecoder(r.Body).Decode(&task)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
 
-	task, err = s.m.ValidTask(task)
+	task, err = s.m.ValidTaskAndModify(task)
 	if err != nil {
-		respErr := models.RespErr{Err: ErrBadVal.Error()}
-		res, err := json.Marshal(respErr)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write(res)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
 
 	id, err := s.m.AddTask(task)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
 
-	respId := models.RespId{Id: id}
-	res, err := json.Marshal(respId)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write(res)
+	w.Write([]byte(fmt.Sprintf(`{"id":"%d"}`, id)))
 
 }
 
 func (s *Server) taskDelete(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		respErr := models.RespErr{Err: ErrEmptyId.Error()}
-		res, err := json.Marshal(respErr)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(res))
-		return
-	}
-	if _, err := strconv.Atoi(id); err != nil {
-		respErr := models.RespErr{Err: ErrBadVal.Error()}
-		res, err := json.Marshal(respErr)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write(res)
-		return
-	}
-
-	err := s.m.DeleteTask(id)
+	id, err := strconv.Atoi(r.URL.Query().Get("id"))
 	if err != nil {
-		respErr := models.RespErr{Err: err.Error()}
-		res, err := json.Marshal(respErr)
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write(res)
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, ErrEmptyId.Error()), http.StatusInternalServerError)
 		return
 	}
 
-	w.Write([]byte(`{}`))
+	err = s.m.DeleteTask(uint64(id))
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
 
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{}`))
 }
