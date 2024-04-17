@@ -5,11 +5,11 @@ import (
 	"strconv"
 )
 
-type SQLDatabase struct {
+type Storage struct {
 	db *sql.DB
 }
 
-func NewDatabase() (*SQLDatabase, error) {
+func NewStorage() (*Storage, error) {
 	sqlDB, err := sql.Open("sqlite3", dbName)
 	if err != nil {
 		return nil, err
@@ -17,7 +17,7 @@ func NewDatabase() (*SQLDatabase, error) {
 	if err := migrate(sqlDB); err != nil {
 		return nil, err
 	}
-	return &SQLDatabase{sqlDB}, nil
+	return &Storage{sqlDB}, nil
 }
 
 func migrate(d *sql.DB) error {
@@ -30,11 +30,11 @@ func migrate(d *sql.DB) error {
 	return nil
 }
 
-func (s *SQLDatabase) Close() error {
+func (s *Storage) Close() error {
 	return s.db.Close()
 }
 
-func (s *SQLDatabase) AddTask(task *Task) (string, error) {
+func (s *Storage) AddTask(task *Task) (string, error) {
 	res, err := s.db.Exec("INSERT INTO scheduler (date, title, comment, repeat) VALUES (?, ?, ?, ?)",
 		task.Date, task.Title, task.Comment, task.Repeat)
 	if err != nil {
@@ -47,7 +47,7 @@ func (s *SQLDatabase) AddTask(task *Task) (string, error) {
 	return strconv.FormatInt(id, 10), nil
 }
 
-func (s *SQLDatabase) GetTaskById(ids string) (*Task, error) {
+func (s *Storage) GetTaskById(ids string) (*Task, error) {
 	var t Task
 	id, err := strconv.ParseInt(ids, 10, 64)
 	if err != nil {
@@ -60,7 +60,7 @@ func (s *SQLDatabase) GetTaskById(ids string) (*Task, error) {
 	return &t, nil
 }
 
-func (s *SQLDatabase) GetTasks() (*TaskList, error) {
+func (s *Storage) GetTasks() (*TaskList, error) {
 	var tl TaskList
 	rows, err := s.db.Query(`SELECT * FROM scheduler ORDER BY date ASC LIMIT 50`)
 	if err != nil {
@@ -82,7 +82,7 @@ func (s *SQLDatabase) GetTasks() (*TaskList, error) {
 	return &tl, nil
 }
 
-func (s *SQLDatabase) UpdateTask(task *Task) error {
+func (s *Storage) UpdateTask(task *Task) error {
 
 	stmt, err := s.db.Prepare("UPDATE scheduler SET date=?, title=?, comment=?, repeat=? WHERE id=?")
 	if err != nil {
@@ -110,7 +110,7 @@ func (s *SQLDatabase) UpdateTask(task *Task) error {
 	return nil
 }
 
-func (s *SQLDatabase) DeleteTask(ids string) error {
+func (s *Storage) DeleteTask(ids string) error {
 	stmt, err := s.db.Prepare("DELETE FROM scheduler WHERE id=?")
 	if err != nil {
 		return err

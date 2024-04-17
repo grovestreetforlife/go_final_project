@@ -16,52 +16,52 @@ type Database interface {
 	NextDate(now time.Time, date string, repeat string) (string, error)
 }
 
-type Storage struct {
-	db *SQLDatabase
+type Service struct {
+	db *Storage
 }
 
-func New(db *SQLDatabase) *Storage {
-	return &Storage{
+func NewService(db *Storage) *Service {
+	return &Service{
 		db: db,
 	}
 }
 
-func (m *Storage) GetTaskById(id string) (*Task, error) {
-	return m.db.GetTaskById(id)
+func (s *Service) GetTask(id string) (*Task, error) {
+	return s.db.GetTaskById(id)
 }
 
-func (m *Storage) AddTask(task *Task) (string, error) {
-	return m.db.AddTask(task)
+func (s *Service) AddTask(task *Task) (string, error) {
+	return s.db.AddTask(task)
 }
 
-func (m *Storage) GetTasks() (*TaskList, error) {
-	return m.db.GetTasks()
+func (s *Service) GetTasks() (*TaskList, error) {
+	return s.db.GetTasks()
 }
 
-func (m *Storage) UpdateTask(task *Task) error {
-	return m.db.UpdateTask(task)
+func (s *Service) UpdateTask(task *Task) error {
+	return s.db.UpdateTask(task)
 }
 
-func (m *Storage) DeleteTask(id string) error {
-	return m.db.DeleteTask(id)
+func (s *Service) DeleteTask(id string) error {
+	return s.db.DeleteTask(id)
 }
 
-func (m *Storage) DoneTask(id string) error {
-	task, err := m.db.GetTaskById(id)
+func (s *Service) DoneTask(id string) error {
+	task, err := s.db.GetTaskById(id)
 	if err != nil {
 		return err
 	}
 
 	if task.Repeat == "" {
-		return m.db.DeleteTask(task.ID)
+		return s.db.DeleteTask(task.ID)
 	}
 
-	task.Date, err = m.NextDate(time.Now(), task.Date, task.Repeat)
+	task.Date, err = s.NextDate(time.Now(), task.Date, task.Repeat)
 	if err != nil {
 		return err
 	}
 
-	err = m.db.UpdateTask(task)
+	err = s.db.UpdateTask(task)
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (m *Storage) DoneTask(id string) error {
 
 }
 
-func (m *Storage) ValidTaskAndModify(t *Task) (*Task, error) {
+func (s *Service) ValidTaskAndModify(t *Task) (*Task, error) {
 	if strings.TrimSpace(t.Title) == "" {
 		return nil, ErrEmptyTitle
 	}
@@ -90,7 +90,7 @@ func (m *Storage) ValidTaskAndModify(t *Task) (*Task, error) {
 		if t.Repeat == "" {
 			t.Date = now.Format("20060102")
 		} else {
-			t.Date, err = m.NextDate(now, t.Date, t.Repeat)
+			t.Date, err = s.NextDate(now, t.Date, t.Repeat)
 			if err != nil {
 				return nil, err
 			}
@@ -101,7 +101,7 @@ func (m *Storage) ValidTaskAndModify(t *Task) (*Task, error) {
 	return t, nil
 }
 
-func (m *Storage) NextDate(now time.Time, date string, repeat string) (string, error) {
+func (s *Service) NextDate(now time.Time, date string, repeat string) (string, error) {
 	if repeat == "" {
 		return "", ErrBadVal
 	}

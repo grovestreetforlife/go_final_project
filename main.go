@@ -13,17 +13,16 @@ const (
 )
 
 func main() {
-	db, err := NewDatabase()
+	db, err := NewStorage()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
 
-	todolist := New(db)
+	service := NewService(db)
 
-	server := NewServer(todolist)
-	err = server.Start()
-	if err != nil {
+	server := NewServer(service)
+	if err = server.Start(); err != nil {
 		log.Fatalf("Failed to start the server: %v", err)
 	}
 

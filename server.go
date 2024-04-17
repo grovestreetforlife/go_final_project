@@ -10,7 +10,7 @@ import (
 
 type TodoList interface {
 	AddTask(task *Task) (string, error)
-	GetTaskById(id string) (*Task, error)
+	GetTask(id string) (*Task, error)
 	GetTasks() (*TaskList, error)
 	UpdateTask(task *Task) error
 	DeleteTask(id string) error
@@ -122,7 +122,7 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t, err := s.m.GetTaskById(id)
+	t, err := s.m.GetTask(id)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
