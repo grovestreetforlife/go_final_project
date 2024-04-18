@@ -6,16 +6,6 @@ import (
 	"time"
 )
 
-type Database interface {
-	AddTask(task *Task) (string, error)
-	GetTaskById(id string) (*Task, error)
-	GetTasks() (*TaskList, error)
-	UpdateTask(task *Task) error
-	DeleteTask(id string) error
-	ValidTaskAndModify(t *Task) (*Task, error)
-	NextDate(now time.Time, date string, repeat string) (string, error)
-}
-
 type Service struct {
 	db *Storage
 }
